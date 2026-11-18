@@ -35,6 +35,53 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { body: "You have a new update. Open Way Point to view it." };
+  }
+
+  const title = typeof payload.title === "string" ? payload.title : "Way Point update";
+  const body = typeof payload.body === "string"
+    ? payload.body
+    : "You have a new update. Open Way Point to view it.";
+  const url = typeof payload.url === "string" && payload.url.startsWith("/")
+    ? payload.url
+    : "/";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const requestedUrl = new URL(
+    event.notification.data?.url || "/",
+    self.location.origin
+  );
+  const url = requestedUrl.origin === self.location.origin ? requestedUrl.href : "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+      for (const client of windows) {
+        if ("focus" in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    })
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);

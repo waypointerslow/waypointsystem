@@ -22,9 +22,19 @@ npm run db:migrate
 # Production/staging .env must have:
 DATABASE_URL="postgresql://postgres.<ref>:<pw>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres?sslmode=no-verify&pgbouncer=true"
 MIGRATION_DATABASE_URL="postgresql://postgres.<ref>:<pw>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres?sslmode=require"
+
+# Web Push (generate with `npx web-push generate-vapid-keys`)
+VAPID_PUBLIC_KEY="<your-vapid-public-key>"
+VAPID_PRIVATE_KEY="<your-vapid-private-key>"
+VAPID_SUBJECT="mailto:admin@your-domain.com"
+
+# Long random secret used by the scheduled overdue-task check
+CRON_SECRET="<long-random-secret>"
 ```
 
 **Do NOT** use the transaction pooler (port 6543) for `MIGRATION_DATABASE_URL` — DDL operations fail on the transaction pooler.
+
+Keep the VAPID private key and `CRON_SECRET` secret. Configure all four Web Push variables in each deployment environment. Generate a VAPID key pair once and keep using the same pair; rotating it requires users to subscribe again.
 
 ### 3. Verify Prisma client is regenerated
 
@@ -66,7 +76,18 @@ npm run db:deploy
 npm run db:migrate
 ```
 
-### 3. After migration — verify data integrity
+### 3. Configure overdue-task push checks
+
+Task assignments and application stage changes can send push notifications immediately. Overdue tasks need a scheduler because the app cannot detect deadlines while it is not running. Configure your hosting provider or an external scheduler to request this endpoint every 15 minutes:
+
+```text
+GET https://<your-domain>/api/notifications/overdue
+Authorization: Bearer <CRON_SECRET>
+```
+
+The endpoint only processes overdue notifications when the `CRON_SECRET` bearer token is valid.
+
+### 4. After migration — verify data integrity
 
 ```sql
 -- Check table row counts:
@@ -126,6 +147,7 @@ npx prisma migrate resolve
 | `20260723000000_add_payment_model` | Jul 23 | Payment model with recordedBy/confirmedBy |
 | `20260728000000_add_activity_log_and_notifications` | Jul 28 | ActivityLog and Notification models |
 | `20260728000001_add_quality_reviews_submission_records_tracking_updates` | Jul 28 | QualityReview, SubmissionRecord, TrackingUpdate |
+| `20261117220000_add_push_subscriptions` | Nov 17 | Per-user browser push subscriptions |
 
 ## Post-Deployment Verification
 
@@ -138,6 +160,9 @@ npx prisma migrate resolve
 - [ ] Task creation and reassignment works
 - [ ] Activity log shows on client profile
 - [ ] Notifications appear in the bell dropdown
+- [ ] Push notifications can be enabled in the notification dropdown
+- [ ] Task assignments and stage changes reach a subscribed browser
+- [ ] Scheduled overdue-task endpoint creates notifications with a valid `CRON_SECRET`
 - [ ] Document templates load without 500 errors
 - [ ] Payment recording works
 - [ ] Quality review submission works

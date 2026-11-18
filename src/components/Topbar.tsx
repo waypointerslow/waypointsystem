@@ -15,6 +15,7 @@ import {
   Menu
 } from "lucide-react";
 import { useAuth } from "@/context";
+import { PushNotificationControl } from "@/components/PushNotificationControl";
 
 interface NotificationItem {
   id: number;
@@ -191,6 +192,7 @@ export function Topbar({ currentTab, onNavigate, onMenuClick }: TopbarProps) {
                     </button>
                   )}
                 </div>
+                <PushNotificationControl />
                 <div className="max-h-64 overflow-y-auto">
                   {notificationsLoading ? (
                     <div className="py-8 flex justify-center items-center">

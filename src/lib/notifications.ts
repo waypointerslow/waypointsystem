@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sendPushNotification } from "@/lib/pushNotifications";
 
 // Notifications are best-effort, same reasoning as activity logging: never let
 // a notification failure break the mutation that triggered it.
@@ -9,18 +10,24 @@ export async function createNotification(params: {
   message: string;
   link?: string;
 }) {
+  let notification;
   try {
-    await prisma.notification.create({ data: params });
+    notification = await prisma.notification.create({ data: params });
   } catch (err) {
     console.error("Failed to create notification:", err);
+    return;
+  }
+
+  try {
+    await sendPushNotification(params.userId, { title: notification.title });
+  } catch (err) {
+    console.error("Failed to send push notification:", err);
   }
 }
 
-// There is no background job scheduler in this project, so overdue tasks are
-// detected lazily: every time a user's notification list is fetched, we scan
-// their own tasks for ones that just went overdue and haven't been flagged
-// yet. The link encodes both the client (for navigation) and the task (so a
-// second overdue task for the same client doesn't get skipped as a dupe).
+// Overdue tasks are checked both when a user fetches notifications and through
+// the scheduled endpoint. The link includes the task so separate overdue tasks
+// for the same client are not mistaken for duplicates.
 export async function notifyOverdueTasksForUser(userId: number) {
   const overdueTasks = await prisma.task.findMany({
     where: {
@@ -53,4 +60,22 @@ export async function notifyOverdueTasksForUser(userId: number) {
       });
     }
   }
+}
+
+export async function notifyOverdueTasksForAllUsers() {
+  const assignees = await prisma.task.findMany({
+    where: {
+      assigneeId: { not: null },
+      status: { not: "DONE" },
+      dueDate: { lt: new Date() },
+    },
+    select: { assigneeId: true },
+    distinct: ["assigneeId"],
+  });
+
+  for (const { assigneeId } of assignees) {
+    if (assigneeId !== null) await notifyOverdueTasksForUser(assigneeId);
+  }
+
+  return assignees.length;
 }

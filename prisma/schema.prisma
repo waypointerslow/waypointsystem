@@ -31,6 +31,7 @@ model User {
   trackingUpdates   TrackingUpdate[] @relation("TrackingUpdater")
   activityLogs      ActivityLog[] @relation("ActivityLogActor")
   notifications     Notification[] @relation("NotificationRecipient")
+  pushSubscriptions PushSubscription[]
   dailyReports      DailyReport[] @relation("DailyReportStaff")
   reviewedReports   DailyReport[] @relation("DailyReportReviewer")
   dailyReportSamples DailyReportSample[]
@@ -360,6 +361,20 @@ model Notification {
 
   @@index([userId, isRead])
   @@map("notifications")
+}
+
+model PushSubscription {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("push_subscriptions")
 }
 
 model DailyReport {
